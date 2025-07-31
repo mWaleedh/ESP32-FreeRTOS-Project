@@ -1,3 +1,7 @@
+#define ENABLE_USER_AUTH
+#define ENABLE_DATABASE
+#define MS_TO_TICKS(ms) ((ms) / portTICK_PERIOD_MS)
+
 #include <Arduino.h>
 #include <Wire.h>
 #include <Adafruit_Sensor.h>
@@ -10,8 +14,6 @@
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <FirebaseClient.h>
-
-#define MS_TO_TICKS(ms) ((ms) / portTICK_PERIOD_MS)
 
 static const uint8_t SCREEN_ADDRESS = 0x3C;
 static const uint8_t SENSOR_ADDRESS = 0x76;
@@ -28,6 +30,16 @@ const char* DATABASE_URL = "https://freertos-5377b-default-rtdb.asia-southeast1.
 const char* USER_EMAIL = "waleed7x.spam@gmail.com";
 const char* USER_PASS = "waleed.spam200657";
 const char* FIREBASE_PATH = "/devices/weather_station_01";
+
+void asyncCB(AsyncResult &aResult);
+void processData(AsyncResult &aResult);
+UserAuth user_auth("Web_API_KEY", "USER_EMAIL", "USER_PASSWORD");
+FirebaseApp firebase;
+WiFiClientSecure ssl_client;
+using AsyncClient = AsyncClientClass;
+AsyncClient async_client(ssl_client);
+RealtimeDatabase database;
+AsyncResult dbResult;
 
 Adafruit_BMP280 bmp;
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
@@ -421,14 +433,13 @@ void firebaseUpload(void* p) {
     }
 
     if (sensor_data_count == MAX_FIREBASE_SAMPLES) {
-      if (Firebase.ready()) {
+      if (firebase.ready()) {
         avg_sensor_data.temperature = calculateAverageTemp(local_sensor_data, sensor_data_count);
         avg_sensor_data.pressure = calculateAveragePressure(local_sensor_data, sensor_data_count);
 
-        Firebase.RTDB.setFloatAsync(&fbdo, FIREBASE_PATH + "/temperature_c", avg_sensor_data.temperature);
-        Firebase.RTDB.setFloatAsync(&fbdo, FIREBASE_PATH + "/temperature_f", toFahrenheit(avg_sensor_data.temperature));
-        Firebase.RTDB.setFloatAsync(&fbdo, FIREBASE_PATH + "/pressure_hpa", avg_sensor_data.pressure);
-        Firebase.RTDB.setTimestampAsync(&fbdo, FIREBASE_PATH + "/last_updated_timestamp");
+        database.set<float>(async_client, "FIREBASE_PATH", avg_sensor_data.temperature, NULL, "RealtimeDatabase_SetTask");
+        database.set<float>(async_client, "FIREBASE_PATH", toFahrenheit(avg_sensor_data.temperature), NULL, "RealtimeDatabase_SetTask");
+        database.set<float>(async_client, "FIREBASE_PATH", avg_sensor_data.pressure, NULL, "RealtimeDatabase_SetTask");
       }
       else {
         Serial.println("Firebase Task: Firebase not ready. Skipping upload.");
@@ -494,7 +505,10 @@ void systemMonitor(void* p) {
   Serial.println();
   Serial.println("System Monitor: Connected.");
 
-
+  ssl_client.setInsecure();
+  initializeApp(async_client, firebase, getAuth(user_auth), NULL, "authTask");
+  firebase.getApp<RealtimeDatabase>(database);
+  database.url("DATABSE_URL");
 
   while(1) {
     switch (system_state) {
@@ -591,4 +605,6 @@ void setup() {
   xTaskCreatePinnedToCore(systemMonitor, "System Monitor", 4096, NULL, 5, NULL, 0);
 }
 
-void loop() {}
+void loop() {
+  firebase.loop();
+}

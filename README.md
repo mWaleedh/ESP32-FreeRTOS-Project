@@ -67,9 +67,16 @@ This separation is a key architectural choice for building reliable connected de
 
 ## Firebase Integration & Open Source Contribution
 
-A major part of this project was learning to integrate a modern IoT cloud service. I chose the `FirebaseClient` library by `mobizt` for its powerful asynchronous features, which are essential for a non-blocking RTOS environment.
+For cloud integration, the system utilizes the modern **`FirebaseClient`** library by Mobizt. This library was chosen specifically for its powerful, non-blocking **asynchronous API**, which is essential for maintaining a responsive and stable RTOS application.
 
-While learning about the library, I was looking through its documentation and official examples. This led me to finding and fixing several minor errors in the repository's README files and example code. I was excited to have **multiple pull requests merged** by the project's author, allowing me to contribute back to the open-source community and also becoming one of the few contributers of this powerful library.
+A deep dive into the library's documentation and official examples was necessary for a successful implementation. This process led to the discovery of several areas for improvement, from minor documentation errors to confusing patterns in the example code.
+
+Seeing an opportunity to not just use the tool, but to improve it for the entire community, I took the initiative to contribute back to the project. My contributions included:
+
+1.  **Submitting multiple pull requests** to fix typos and clarify comments in the official README and code examples.
+2.  **Architecting and developing two brand new, purely separated `synchronous` and `asynchronous` "Bare Minimum" examples.** This was done to provide a clear "best practice" template for new developers and resolve the confusion caused by the original mixed-pattern example.
+
+The project maintainer accepted and merged all of my contributions. This journey from user to problem-solver resulted in me becoming **one of the few core contributors** to this widely-used IoT library. This experience was a practical lesson in the importance of high-quality documentation, clean examples, and active community participation in the open-source world.
 
 ---
 
