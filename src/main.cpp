@@ -10,7 +10,6 @@
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <FirebaseClient.h>
-#include <addons/TokenHelper.h>
 
 #define MS_TO_TICKS(ms) ((ms) / portTICK_PERIOD_MS)
 
@@ -22,7 +21,7 @@ static const uint8_t SCREEN_HEIGHT = 64;
 static const int8_t OLED_RESET = -1;
 
 const char* WIFI_SSID = "XD";
-const char* W IFI_PASSWORD = "11081975";
+const char* WIFI_PASSWORD = "11081975";
 
 const char* WEB_API_KEY = "AIzaSyCkosRZUHBpq2QKOnVbxIqGwuZvKwB51oc";
 const char* DATABASE_URL = "https://freertos-5377b-default-rtdb.asia-southeast1.firebasedatabase.app/";
@@ -32,10 +31,6 @@ const char* FIREBASE_PATH = "/devices/weather_station_01";
 
 Adafruit_BMP280 bmp;
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
-
-FirebaseData fbdo;
-FirebaseAuth auth;
-FirebaseConfig config;
 
 static const int BAUD_RATE = 115200;
 static const uint8_t MY_SDA = 21;
@@ -88,16 +83,6 @@ static SensorData_t sensor_data;
 /////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////
-
-void tokenStatusCallback(TokenInfo info) {
-  if (info.status == token_status_ready) {
-    Serial.println("Firebase: Token is ready, authentication successful.");
-  } 
-  else {
-    Serial.printf("Firebase Task: Token status: %s\n", getAuthTokenStatus(info).c_str());
-    Serial.printf("Firebase Task: Token error: %s\n", info.error.message.c_str());
-  }
-}
 
 float toFahrenheit(float celsius) {
   return celsius * 9.0 / 5.0 + 32.0;
@@ -192,11 +177,11 @@ void listAvailableCommands() {
 
 void suspendTask(TaskHandle_t handle) {
     if (handle == NULL) {
-    Serial.printf("Serial Task: Cannot suspend '%s', task not created.\n", taskName);
+    Serial.printf("Serial Task: Cannot suspend '%s', task not created.\n", handle);
     return;
   }
   vTaskSuspend(handle);
-  Serial.printf("Serial Task: Suspended '%s' task.\n", taskName);
+  Serial.printf("Serial Task: Suspended '%s' task.\n", handle);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////
@@ -205,11 +190,11 @@ void suspendTask(TaskHandle_t handle) {
 
 void resumeTask(TaskHandle_t handle) {
   if (handle == NULL) {
-    Serial.printf("Serial Task: Cannot resume '%s', task not created.\n", taskName);
+    Serial.printf("Serial Task: Cannot resume '%s', task not created.\n", handle);
     return;
   }
   vTaskResume(handle);
-  Serial.printf("Serial Task: Resumed '%s' task.\n", taskName);
+  Serial.printf("Serial Task: Resumed '%s' task.\n", handle);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////
@@ -509,14 +494,7 @@ void systemMonitor(void* p) {
   Serial.println();
   Serial.println("System Monitor: Connected.");
 
-  config.api_key = WEB_API_KEY;
-  auth.user.email = USER_EMAIL;
-  auth.user.password = USER_PASS;
-  config.database_url = DATABASE_URL;
 
-  config.token_status_callback = tokenStatusCallback;
-  Firebase.begin(&config, &auth);
-  Firebase.reconnectWifi(true);
 
   while(1) {
     switch (system_state) {
@@ -613,6 +591,4 @@ void setup() {
   xTaskCreatePinnedToCore(systemMonitor, "System Monitor", 4096, NULL, 5, NULL, 0);
 }
 
-void loop() {
-  Firebase.loop();
-}
+void loop() {}
