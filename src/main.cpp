@@ -1,5 +1,3 @@
-#define MS_TO_TICKS(ms) ((ms) / portTICK_PERIOD_MS)
-
 #include <Arduino.h>
 #include <Wire.h>
 #include <Adafruit_Sensor.h>
@@ -13,6 +11,8 @@
 #include <WiFiClientSecure.h>
 #include <FirebaseClient.h>
 #include <addons/TokenHelper.h>
+
+#define MS_TO_TICKS(ms) ((ms) / portTICK_PERIOD_MS)
 
 static const uint8_t SCREEN_ADDRESS = 0x3C;
 static const uint8_t SENSOR_ADDRESS = 0x76;
@@ -169,8 +169,104 @@ bool checkHardware() {
 ////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////
 
-bool isValidSerialInput(char* input) {
+void listAvailableCommands() {
+  Serial.println("------------ Available Commands ------------");
+  Serial.println("1. Stop            - Suspend all tasks.");   
+  Serial.println("2. Stop Display    - Suspend display task.");
+  Serial.println("3. Stop SD Card    - Suspend sd card task.");
+  Serial.println("4. Stop Firebase   - Suspend firebase task.");
+  Serial.println("5. Start           - Resume all tasks.");    
+  Serial.println("6. Start Display   - Resume display task."); 
+  Serial.println("7. Start SD Card   - Resume sd card task."); 
+  Serial.println("8. Start Firebase  - Resume firebase task.");
+  Serial.println("9. Help            - List available commands.");
+}
 
+/////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////
+
+void suspendTask(TaskHandle_t handle) {
+    if (handle == NULL) {
+    Serial.printf("Serial Task: Cannot suspend '%s', task not created.\n", taskName);
+    return;
+  }
+  vTaskSuspend(handle);
+  Serial.printf("Serial Task: Suspended '%s' task.\n", taskName);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////
+
+void resumeTask(TaskHandle_t handle) {
+  if (handle == NULL) {
+    Serial.printf("Serial Task: Cannot resume '%s', task not created.\n", taskName);
+    return;
+  }
+  vTaskResume(handle);
+  Serial.printf("Serial Task: Resumed '%s' task.\n", taskName);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////
+
+void suspendAllTasks() {
+  Serial.println("Serial Task: Suspending all tasks.");
+  suspendTask(readSensor_h);
+  suspendTask(displayData_h);
+  suspendTask(sdCardLogger_h);
+  suspendTask(firebaseUpload_h);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////
+
+void resumeAllTasks() {
+  Serial.println("Serial Task: Resuming all tasks.");
+  resumeTask(readSensor_h);
+  resumeTask(displayData_h);
+  resumeTask(sdCardLogger_h);
+  resumeTask(firebaseUpload_h);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////
+
+void processSerialInput(char* input) {
+  if (strcasecmp(input, "Help") == 0) {
+    listAvailableCommands();
+  }
+  else if (strcasecmp(input, "Start") == 0) {
+    resumeAllTasks();
+  }
+  else if (strcasecmp(input, "Start Display") == 0) {
+    resumeTask(displayData_h);
+  }
+  else if (strcasecmp(input, "Start SD Card") == 0) {
+    resumeTask(sdCardLogger_h);
+  }
+  else if (strcasecmp(input, "Start Firebase") == 0) {
+    resumeTask(firebaseUpload_h);
+  }
+  else if (strcasecmp(input, "Stop") == 0) { 
+    suspendAllTasks();
+  }
+  else if (strcasecmp(input, "Stop Display") == 0) {
+    suspendTask(displayData_h);
+  }
+  else if (strcasecmp(input, "Stop SD Card") == 0) {
+    suspendTask(sdCardLogger_h);
+  }
+  else if (strcasecmp(input, "Stop Firebase") == 0) {
+    suspendTask(firebaseUpload_h);
+  }
+  else {
+    Serial.printf("Serial Task: Unknown command '%s'. Type 'Help' for list of commands.\n", input);
+  }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////
@@ -374,9 +470,7 @@ void readSerial(void* p) {
       if (ch == '\n') {
         buffer[index] = '\0';
 
-        if (isValidSerialInput(buffer)) {
-
-        }
+        processSerialInput(buffer);
 
         memset(buffer, 0, SERIAL_BUFFER_SIZE);
         index = 0;
@@ -430,10 +524,10 @@ void systemMonitor(void* p) {
 
             xTaskCreatePinnedToCore(readSensor, "Read Sensor", 2048, NULL, 4, &readSensor_h, 0);
             xTaskCreatePinnedToCore(displayData, "Display Data", 2048, NULL, 3, &displayData_h, 0);
-            xTaskCreatePinnedToCore(sdCardLogger, "Data to SD Card", 2048, NULL, 2, &sdCardLogger_h, 0);
+            xTaskCreatePinnedToCore(sdCardLogger, "SD Card Logger", 2048, NULL, 2, &sdCardLogger_h, 0);
 
             xTaskCreatePinnedToCore(readSerial, "Read Serial", 2048, NULL, 3, &readSerial_h, 1);
-            xTaskCreatePinnedToCore(firebaseUpload, "Data to Firebase", 8192, NULL, 2, &firebaseUpload_h, 1);
+            xTaskCreatePinnedToCore(firebaseUpload, "Firebase Upload", 8192, NULL, 2, &firebaseUpload_h, 1);
 
             tasks_running = true;
           }
