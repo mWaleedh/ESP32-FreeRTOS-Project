@@ -30,10 +30,10 @@ This project uses a selection of common and versatile components, chosen for the
 
 | Component | Image | Description |
 | :--- | :---: | :--- |
-| **ESP32-DOIT-DEVKIT-V1** | ![ESP32 Dev Kit](images/esp32.jpg) | A powerful dual-core microcontroller with built-in Wi-Fi and Bluetooth. Its dual-core nature was essential for separating real-time tasks from communication tasks. |
+| **ESP32-DOIT-DEVKIT-V1** | ![ESP32 Dev Kit](images/esp32.jpeg) | A powerful dual-core microcontroller with built-in Wi-Fi and Bluetooth. Its dual-core nature was essential for separating real-time tasks from communication tasks. |
 | **BMP280 Sensor** | ![BMP280 Sensor](https://github.com/mWaleedh/ESP32-FreeRTOS-Project/blob/main/images/bmp280.jpeg) | An I2C sensor used for gathering environmental data. This sensor provides pressure and temperature. Note that the popular **BME280** sensor is a little different from the **BMP280**, adding a humidity reading, but it would work with this code after minor modifications. |
-| **SSD1306 0.96" OLED** | ![SSD1306 OLED Display](images/ssd1306.jpg) | A small I2C monochrome display used to provide a real-time, local data readout. Its low power consumption is ideal for battery-powered projects. |
-| **MicroSD Card Module** | ![MicroSD Card Module](images/sd_module.jpg) | An SPI-based storage solution used for long-term, offline data logging. The project uses a standard FAT32 formatted card for broad compatibility. |
+| **SSD1306 0.96" OLED** | ![SSD1306 OLED Display](images/ssd1306.jpeg) | A small I2C monochrome display used to provide a real-time, local data readout. Its low power consumption is ideal for battery-powered projects. |
+| **MicroSD Card Module** | ![MicroSD Card Module](images/sd_module.jpeg) | An SPI-based storage solution used for long-term, offline data logging. The project uses a standard FAT32 formatted card for broad compatibility. |
 
 ---
 
