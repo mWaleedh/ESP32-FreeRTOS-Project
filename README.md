@@ -104,7 +104,7 @@ This project is built using **PlatformIO** within **Visual Studio Code**, which 
 
 This project requires a Google Firebase project to store and manage the IoT data. 
 
-For a more detailed, visual guide, you can also follow the excellent tutorial at **[Random Nerd Tutorials](https://randomnerdtutorials.com/esp32-firebase-realtime-database/)**. Alternatively, you can continue with the steps below.
+For a more detailed, visual guide, you can also follow this excellent tutorial at **[Random Nerd Tutorials](https://randomnerdtutorials.com/esp32-firebase-realtime-database/)**. Alternatively, you can continue with the steps below.
 
 1.  **Create a Firebase Project:**
     *   Go to the [Firebase Console](https://console.firebase.google.com/).
