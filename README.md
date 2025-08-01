@@ -26,12 +26,14 @@ This project served as a hands-on masterclass in embedded systems engineering. T
 
 ## Hardware Used
 
-This project uses a selection of common and versatile components:
+This project uses a selection of common and versatile components, chosen for their robust libraries and ease of integration.
 
--   **ESP32-DOIT-DEVKIT-V1:** A powerful dual-core microcontroller with built-in Wi-Fi and Bluetooth. Its dual-core nature was essential for separating real-time tasks from communication tasks.
--   **BMP280 Sensor:** An I2C sensor used for gathering environmental data. This sensor provides pressure and temperature. Note that the popular **BME280** sensor is a little different from the **BMP280**, adding a humidity reading, but it would work with this code after minor modifications. Refer to the comments in the source file for exact steps.
--   **SSD1306 0.96" OLED Display:** A small I2C OLED display used to provide a real-time, local data readout.
--   **MicroSD Card Module & Card (FAT32):** An SPI-based storage solution used for long-term, offline data logging.
+| Component | Image | Description |
+| :--- | :---: | :--- |
+| **ESP32-DOIT-DEVKIT-V1** | ![ESP32 Dev Kit](images/esp32.jpg) | A powerful dual-core microcontroller with built-in Wi-Fi and Bluetooth. Its dual-core nature was essential for separating real-time tasks from communication tasks. |
+| **BMP280 Sensor** | ![BMP280 Sensor](images/bmp280.jpg) | An I2C sensor used for gathering environmental data. This sensor provides pressure and temperature. Note that the popular **BME280** sensor is a little different from the **BMP280**, adding a humidity reading, but it would work with this code after minor modifications. Refer to the comments in the source file for exact steps. |
+| **SSD1306 0.96" OLED** | ![SSD1306 OLED Display](images/ssd1306.jpg) | A small I2C monochrome display used to provide a real-time, local data readout. Its low power consumption is ideal for battery-powered projects. |
+| **MicroSD Card Module** | ![MicroSD Card Module](images/sd_module.jpg) | An SPI-based storage solution used for long-term, offline data logging. The project uses a standard FAT32 formatted card for broad compatibility. |
 
 ---
 
@@ -67,16 +69,19 @@ This separation is a key architectural choice for building reliable connected de
 
 ## Firebase Integration & Open Source Contribution
 
-For cloud integration, the system utilizes the modern **`FirebaseClient`** library by Mobizt. This library was chosen specifically for its powerful, non-blocking **asynchronous API**, which is essential for maintaining a responsive and stable RTOS application.
+For cloud integration, the system utilizes the modern **`Firebase-ESP-Client`** library by Mobizt. This library was chosen specifically for its powerful, non-blocking **asynchronous API**, which is essential for maintaining a responsive and stable RTOS application.
 
 A deep dive into the library's documentation and official examples was necessary for a successful implementation. This process led to the discovery of several areas for improvement, from minor documentation errors to confusing patterns in the example code.
 
-Seeing an opportunity to not just use the tool, but to improve it for the entire community, I took the initiative to contribute back to the project. My contributions included:
+Seeing an opportunity to not just use the tool but to improve it for the entire community, I became an active contributor to the project. My contributions and proposals included:
 
-1.  **Submitting multiple pull requests** to fix typos and clarify comments in the official README and code examples.
-2.  **Architecting and developing two brand new, purely separated `synchronous` and `asynchronous` "Bare Minimum" examples.** This was done to provide a clear "best practice" template for new developers and resolve the confusion caused by the original mixed-pattern example.
+1.  **Successfully Merged Contributions:** I submitted and had **multiple pull requests merged** to fix typos and clarify comments in the official README and code examples. These contributions corrected errors and improved the clarity of the documentation for all future users.
 
-The project maintainer accepted and merged all of my contributions. This journey from user to problem-solver resulted in me becoming **one of the few core contributors** to this widely-used IoT library. This experience was a practical lesson in the importance of high-quality documentation, clean examples, and active community participation in the open-source world.
+2.  **Proposed Architectural Improvement:** I architected and developed two brand new, purely separated `synchronous` and `asynchronous` "Bare Minimum" examples. This was submitted as a pull request to provide a clearer template for developers and resolve confusion caused by the original mixed-pattern example.
+
+This process was a valuable, real-world lesson in open-source collaboration. My initial pull requests were accepted, officially making me **one of only six contributors** to this widely-used IoT library. The more ambitious proposal for the new examples led to a valuable technical discussion with the project's author.
+
+This entire experience was a practical lesson in the importance of high-quality documentation, the process of submitting and discussing code changes, and the collaborative nature of professional software development.
 
 ---
 

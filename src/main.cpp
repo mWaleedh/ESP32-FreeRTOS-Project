@@ -665,10 +665,14 @@ void systemMonitor(void* p) {
           if (!tasks_running) {
             Serial.println("Serial Monitor: Hardware OK. Initializing system.");
 
+            // Replace 'xTaskCreatePinnedToCore' with 'xTaskCreate' 
+            // if using vanilla FreeRTOS and remove the core parameter.
+            // Here I'm using a modifed version of FreeRTOS 
+            // called ESP-IDF which allows pinning tasks to cores.
+            // This is because ESP32 has 2 cores as opposed to 1 core in vanilla FreeRTOS.
             xTaskCreatePinnedToCore(readSensor, "Read Sensor", 2048, NULL, 4, &readSensor_h, 0);
             xTaskCreatePinnedToCore(displayData, "Display Data", 2048, NULL, 3, &displayData_h, 0);
             xTaskCreatePinnedToCore(sdCardLogger, "SD Card Logger", 2048, NULL, 2, &sdCardLogger_h, 0);
-
             xTaskCreatePinnedToCore(readSerial, "Read Serial", 2048, NULL, 3, &readSerial_h, 1);
             xTaskCreatePinnedToCore(firebaseUpload, "Firebase Upload", 8192, NULL, 2, &firebaseUpload_h, 1);
 
