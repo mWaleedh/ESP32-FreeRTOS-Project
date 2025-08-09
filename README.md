@@ -63,7 +63,7 @@ This separation is a key architectural choice for building reliable connected de
 -   **`displayData` (2048 bytes):** A periodic task that updates the OLED display. It safely reads from the global sensor data struct and then safely acquires the I2C mutex to perform its drawing operations through the I2C bus.
 -   **`sdCardLogger` (4096 bytes):** A data processing and logging task. It collects a batch of sensor readings, calculates their average to reduce noise, and writes a single, organized entry to the SD card. It handles the creation of date-stamped folders and files. Requires a larger stack for the filesystem library.
 -   **`firebaseUpload` (8192 bytes):** The cloud communication task. Similar to the SD logger, it collects and averages data. It then sends this data to the Firebase Realtime Database using non-blocking, asynchronous API calls.
--   **`readSerial` (2048 bytes):** Manages the Command-Line Interface (CLI). It listens for user input and executes commands like suspending or resuming other tasks.
+-   **`readSerial` (4096 bytes):** Manages the Command-Line Interface (CLI). It listens for user input and executes commands like suspending or resuming other tasks.
 
 ---
 

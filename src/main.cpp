@@ -1,7 +1,15 @@
+// Note: You might see a "Wire.cpp" I2C error in the serial monitor
+// if sensor or dipslay is disconnected while the system is running.
+// This is due to the detection latency between the hardware check (5 seconds) 
+// and the sensor read (1 second). 
+// This can easily be solved by setting "HARDWARE_CHECK_INTERVAL_MS" to *1000*
+// But at the cost of performance becasue the hardware check will run every second.
+// The error is completely harmless and can be ignored.
+// That is why I have set the hardware check interval to 5 seconds.
+
 #define ENABLE_USER_AUTH
 #define ENABLE_DATABASE
 
-// Necessary hardware and ESP32 includes for this project.
 #include <Arduino.h>
 #include <Wire.h>
 #include <Adafruit_Sensor.h>
@@ -11,8 +19,6 @@
 #include <time.h>
 #include "FS.h"
 #include "SD.h"
-
-// Necessary includes for Firebase.
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <FirebaseClient.h>
@@ -22,25 +28,23 @@
 // on other devices with different tick rates.
 #define MS_TO_TICKS(ms) ((ms) / portTICK_PERIOD_MS)
 
-// Replace with your Wi-Fi details.
+// Replace with your Wi-Fi credentials
 const char* WIFI_SSID = "XD";
 const char* WIFI_PASSWORD = "11081975";
 
-// Replace with your Firebase project details.
-const char* WEB_API_KEY = "AIzaSyCkosRZUHBpq2QKOnVbxIqGwuZvKwB51oc";
-const char* DATABASE_URL = "https://freertos-5377b-default-rtdb.asia-southeast1.firebasedatabase.app/";
+// Replace with your Firebase credentials
+const char* WEB_API_KEY = "AIzaSyBzxxGUO1AEMTBA4_xy2YgjAtcGUA_7pvM";
+const char* DATABASE_URL = "https://freertos-weatherstation-default-rtdb.firebaseio.com/";
 const char* USER_EMAIL = "waleed7x.spam@gmail.com";
-const char* USER_PASS = "waleed.spam200657";
-
-// Replace with your Firebase database path.
-String FIREBASE_PATH = "/devices/weather_station_01";
+const char*USER_PASS = "waleed.spam200657";
 
 // Set serial monitor baud rate.
 static const int BAUD_RATE = 115200;
 
-// Define the GPIO pins used for I2C communication and default LED pin.
+// Define the GPIO pins used for I2C and SPI communication
 static const uint8_t MY_SDA = 21;
 static const uint8_t MY_SCL = 22;
+static const uint8_t SD_CS = 5;
 static const uint8_t LED = LED_BUILTIN;
 
 // Display and sensor configuration constants.
@@ -57,6 +61,7 @@ static const uint16_t DISPLAY_TEXT_COLOR = SSD1306_WHITE;
 // Define the intervals for various tasks in milliseconds.
 static const int WIFI_CONNECT_INTERVAL_MS = 500;
 static const int SENSOR_READ_INTERVAL_MS = 1000;
+static const int SERIAL_READ_INTERVAL_MS = 100;
 static const int DISPLAY_UPDATE_INTERVAL_MS = 1000;
 static const int SDCARD_SAMPLE_INTERVAL_MS = 1000; 
 static const int FIREBASE_SAMPLE_INTERVAL_MS = 1000; 
@@ -80,19 +85,21 @@ static const uint8_t SD_CARD_FILE_PATH_SIZE = 40;
 static const uint8_t SD_CARD_TIME_SIZE = 10;
 
 // These handles are used by the systemMonitor to manage the lifecycle of other tasks.
+static TaskHandle_t systemMonitor_h = NULL;
 static TaskHandle_t readSensor_h = NULL;
 static TaskHandle_t displayData_h = NULL;
 static TaskHandle_t sdCardLogger_h = NULL;
 static TaskHandle_t readSerial_h = NULL;
 static TaskHandle_t firebaseUpload_h = NULL;
+static TaskHandle_t firebaseBackground_h = NULL;
 
 // These mutexes are used to protect shared resources from concurrent access.
 static SemaphoreHandle_t sensor_mutex;  // Protects the global sensor_data struct 
 static SemaphoreHandle_t i2c_mutex;     // Protects the shared I2C hardware bus used by the sensor and display
 static SemaphoreHandle_t spi_mutex;     // Protects the shared I2C hardware bus used by the SD card
 
-// Firebase objects for asynchronous operations.
-UserAuth user_auth("Web_API_KEY", "USER_EMAIL", "USER_PASSWORD");
+// Firebase objects and authentication for asynchronous operations.
+UserAuth user_auth(WEB_API_KEY, USER_EMAIL, USER_PASS);
 FirebaseApp firebase;
 WiFiClientSecure ssl_client;
 using AsyncClient = AsyncClientClass;
@@ -113,6 +120,9 @@ typedef struct {
 // The global shared data structure that holds the latest sensor reading.
 // This is protected by the 'sensor_mutex'.
 static SensorData_t sensor_data;
+
+// Flag to indicate if the hardware is functioning correctly.
+bool hardware_ok = true; 
 
 
 //===========================================================================================
@@ -168,6 +178,13 @@ const char* getMonthName(int month) {
   return "Unknown";
 }
 
+// Some libraries like Adafruit_SSD1306 might not give an error if the device is not connected.
+// This function checks if a device is connected by attempting to begin communication with it.
+// at the specified I2C address.
+bool deviceConnected(uint8_t address) {
+  Wire.beginTransmission(address);
+  return Wire.endTransmission() == 0;
+}
 
 // Checks the hardware status by verifying the presence of the BMP280 sensor and the SSD1306 display.
 // It uses the I2C mutex to ensure thread safety while accessing these devices.
@@ -176,28 +193,51 @@ const char* getMonthName(int month) {
 // This function is called periodically to ensure the hardware is functioning correctly.
 bool checkHardware() {
   // Flag to indicate if hardware is functioning correctly.
-  bool hardware_status = true;
+  bool bmp_ok = false, display_ok = false, sd_card_ok = false;
 
   // Acquire the I2C mutex to safely access the BMP280 sensor and SSD1306 display.
   if (xSemaphoreTake(i2c_mutex, MS_TO_TICKS(I2C_MUTEX_WAIT_MS) == pdTRUE)) {
+    // Reset the I2C bus to ensure clean state
+    Wire.end();
+    Wire.begin(MY_SDA, MY_SCL);
+
     // Check if the BMP280 sensor is connected.
-    if (!bmp.begin(SENSOR_ADDRESS)) {
-      Serial.println("System Monitor: BMP280 not found.");
-      hardware_status = false;
+    if (deviceConnected(SENSOR_ADDRESS)) {
+      bmp_ok = bmp.begin(SENSOR_ADDRESS);
     }
     // Check if the SSD1306 display is connected.
-    if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
-      Serial.println("System Monitor: SSD1306 not found.");
-      hardware_status = false;
+    if (deviceConnected(SCREEN_ADDRESS)) {
+      display_ok = display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS);
     }
-
+      
     // Release the I2C mutex after checking the devices.
     xSemaphoreGive(i2c_mutex);
   }
 
-  return hardware_status;
-}
+  // Acquire the SPI mutex to safely access the SD card.
+  if (xSemaphoreTake(spi_mutex, MS_TO_TICKS(SPI_MUTEX_WAIT_MS)) == pdTRUE) {
+    //
+    if (SD.begin(SD_CS)) {
+      sd_card_ok = true;
+    }
 
+    // Release the SPI mutex after checking the SD card.
+    xSemaphoreGive(spi_mutex);
+  }
+
+  // Print the status of the hardware devices to the serial monitor.
+  if (!bmp_ok) {
+    Serial.println("System Monitor: BMP280 sensor not found.");
+  }
+  if (!display_ok) {
+    Serial.println("System Monitor: SSD1306 display not found.");
+  }
+  if (!sd_card_ok) {
+    Serial.println("System Monitor: SD card not found.");
+  }
+
+  return bmp_ok && display_ok && sd_card_ok;
+}
 
 // Lists the available commands for the user in the serial monitor.
 // This function is called when the user enters the "Help" command in the serial monitor.
@@ -214,28 +254,27 @@ void listAvailableCommands() {
   Serial.println("9. Help            - List available commands.");
 }
 
-
 // Suspends a task by its handle.
 // It checks if the task has been created and then calls vTaskSuspend to suspend the task.
-void suspendTask(TaskHandle_t handle) {
-    if (handle == NULL) {
-    Serial.printf("Serial Task: Cannot suspend '%s', task not created.\n", handle);
-    return;
+bool suspendTask(TaskHandle_t handle, const char* taskName) {
+  if (handle == NULL) {
+    Serial.printf("Serial Task: Cannot suspend '%s', task not created.\n", taskName);
+    return false;
   }
   vTaskSuspend(handle);
-  Serial.printf("Serial Task: Suspended '%s' task.\n", handle);
+  return true;
 }
 
 
 // Resumes a task by its handle.
 // It checks if the task has been created and then calls vTaskResume to resume the task.
-void resumeTask(TaskHandle_t handle) {
+bool resumeTask(TaskHandle_t handle, const char* taskName) {
   if (handle == NULL) {
-    Serial.printf("Serial Task: Cannot resume '%s', task not created.\n", handle);
-    return;
+    Serial.printf("Serial Task: Cannot resume '%s', task not created.\n", taskName);
+    return false;
   }
   vTaskResume(handle);
-  Serial.printf("Serial Task: Resumed '%s' task.\n", handle);
+  return true;
 }
 
 
@@ -243,11 +282,11 @@ void resumeTask(TaskHandle_t handle) {
 // This function is called when the user enters the "Stop" command in the serial monitor.
 // It suspends the read sensor, display, SD card logger, and Firebase upload tasks.
 void suspendAllTasks() {
-  Serial.println("Serial Task: Suspending all tasks.");
-  suspendTask(readSensor_h);
-  suspendTask(displayData_h);
-  suspendTask(sdCardLogger_h);
-  suspendTask(firebaseUpload_h);
+  Serial.println("System Monitor: Suspending all tasks.");
+  suspendTask(readSensor_h, "Read Sensor");
+  suspendTask(displayData_h, "Display Data");
+  suspendTask(sdCardLogger_h, "SD Card Logger");
+  suspendTask(firebaseUpload_h, "Firebase Upload");
 }
 
 
@@ -255,13 +294,12 @@ void suspendAllTasks() {
 // This function is called when the user enters the "Start" command in the serial monitor.
 // It resumes the read sensor, display, SD card logger, and Firebase upload tasks.
 void resumeAllTasks() {
-  Serial.println("Serial Task: Resuming all tasks.");
-  resumeTask(readSensor_h);
-  resumeTask(displayData_h);
-  resumeTask(sdCardLogger_h);
-  resumeTask(firebaseUpload_h);
+  Serial.println("System Monitor: Resuming all tasks.");
+  resumeTask(readSensor_h, "Read Sensor");
+  resumeTask(displayData_h, "Display Data");
+  resumeTask(sdCardLogger_h, "SD Card Logger");
+  resumeTask(firebaseUpload_h, "Firebase Upload");
 }
-
 
 // Processes the serial input command.
 // It checks the command against a list of known commands and performs the corresponding action.
@@ -276,25 +314,37 @@ void processSerialInput(char* input) {
     resumeAllTasks();
   }
   else if (strcasecmp(input, "Start Display") == 0) {
-    resumeTask(displayData_h);
+    if (resumeTask(displayData_h, "Display Data")) {
+      Serial.println("Serial Task: Display task resumed.");
+    }
   }
   else if (strcasecmp(input, "Start SD Card") == 0) {
-    resumeTask(sdCardLogger_h);
+    if (resumeTask(sdCardLogger_h, "SD Card Logger")) {
+      Serial.println("Serial Task: SD Card task resumed.");
+    }
   }
   else if (strcasecmp(input, "Start Firebase") == 0) {
-    resumeTask(firebaseUpload_h);
+    if (resumeTask(firebaseUpload_h, "Firebase Upload")) {
+      Serial.println("Serial Task: Firebase task resumed.");
+    }
   }
   else if (strcasecmp(input, "Stop") == 0) { 
     suspendAllTasks();
   }
   else if (strcasecmp(input, "Stop Display") == 0) {
-    suspendTask(displayData_h);
+    if (suspendTask(displayData_h, "Display Data")) {
+      Serial.println("Serial Task: Display task suspended.");
+    }
   }
   else if (strcasecmp(input, "Stop SD Card") == 0) {
-    suspendTask(sdCardLogger_h);
+    if( suspendTask(sdCardLogger_h, "SD Card Logger")) {
+      Serial.println("Serial Task: SD Card task suspended.");
+    }
   }
   else if (strcasecmp(input, "Stop Firebase") == 0) {
-    suspendTask(firebaseUpload_h);
+    if (suspendTask(firebaseUpload_h, "Firebase Upload")) {
+      Serial.println("Serial Task: Firebase task suspended.");
+    }
   }
   else {
     Serial.printf("Serial Task: Unknown command '%s'. Type 'Help' for list of commands.\n", input);
@@ -318,6 +368,11 @@ void readSensor(void* p) {
   while(1) {
     // Acquire the I2C mutex to safely read from the BMP280 sensor.
     if (xSemaphoreTake(i2c_mutex, MS_TO_TICKS(I2C_MUTEX_WAIT_MS)) == pdTRUE) {
+      // Check if the hardware is functioning correctly.
+      if (!hardware_ok) {
+        continue;
+      }
+
       // Read the temperature and pressure from the BMP280 sensor.
       fresh_sensor_data.temperature = bmp.readTemperature();
       fresh_sensor_data.pressure = bmp.readPressure() / 100.0;
@@ -367,13 +422,19 @@ void displayData(void* p) {
 
     // Acquire the i2c mutex to safely access the display.
     if (xSemaphoreTake(i2c_mutex, MS_TO_TICKS(I2C_MUTEX_WAIT_MS)) == pdTRUE) {
+      // Check if the hardware is functioning correctly.
+      if (!hardware_ok) {
+        xSemaphoreGive(i2c_mutex);
+        continue;
+      }
+
       // Clear the display and set the text color and size.
       display.clearDisplay();
       display.setTextColor(DISPLAY_TEXT_COLOR);
       display.setTextSize(DISPLAY_TEXT_SIZE);
       display.setCursor(DISPLAY_CURSOR_X, DISPLAY_CURSOR_Y);
 
-      display.println("BMP 280 Data:\n");
+      display.println("  BMP280:");
 
       // Print the temperature reading in Celsius
       display.print(local_sensor_data.temperature); 
@@ -432,6 +493,7 @@ void sdCardLogger(void* p) {
       //  If we have collected enough samples calculate the averages.
       avg_sensor_data.temperature = calculateAverageTemp(local_sensor_data, sensor_data_count);
       avg_sensor_data.pressure = calculateAveragePressure(local_sensor_data, sensor_data_count);
+      sensor_data_count = 0;
 
       // Get the current time to use in file.
       struct tm time_info;
@@ -450,6 +512,11 @@ void sdCardLogger(void* p) {
 
       // Acquire the SPI mutex to safely access the SD card.
       if (xSemaphoreTake(spi_mutex, MS_TO_TICKS(SPI_MUTEX_WAIT_MS)) == pdTRUE) {
+        // Check if the hardware is functioning correctly.
+        if (!hardware_ok) {
+          continue;
+        }
+
         // Check if valid folder exists if not create it.
         if (!SD.exists(folder_path)) {
           // If folder still doesn't get created skig log.
@@ -480,8 +547,11 @@ void sdCardLogger(void* p) {
         File file = SD.open(file_path, FILE_APPEND);
         if (file) {
           char time[SD_CARD_TIME_SIZE];
+          // Format the current time as HH:MM:SS.
           strftime(time, sizeof(time), "%H:%M:%S", &time_info);
 
+          // Write the average sensor data to the file in CSV format.
+          Serial.println("SD Card Task: Writing data to SD card.");
           file.printf("%s,%.2f,%.2f,%.2f\n", time, avg_sensor_data.temperature, toFahrenheit(avg_sensor_data.temperature), avg_sensor_data.pressure);
           file.close();
         }
@@ -495,9 +565,6 @@ void sdCardLogger(void* p) {
         // Release the SPI mutex after writing to the SD card.
         xSemaphoreGive(spi_mutex);
       }
-
-      // Reset the sensor data count after writing to the SD card.
-      sensor_data_count = 0;
     }
 
     vTaskDelay(MS_TO_TICKS(SDCARD_SAMPLE_INTERVAL_MS));
@@ -526,6 +593,11 @@ void firebaseUpload(void* p) {
   SensorData_t avg_sensor_data;
 
   while(1) {
+    // Check if the hardware is functioning correctly.
+    if (!hardware_ok) {
+      continue;
+    }
+
     // Acquire the sensor mutex to safely read the latest sensor data into local array.
     if (xSemaphoreTake(sensor_mutex, MS_TO_TICKS(SENSOR_MUTEX_WAIT_MS)) == pdTRUE) {
       local_sensor_data[sensor_data_count++] = sensor_data;
@@ -536,23 +608,57 @@ void firebaseUpload(void* p) {
 
     // If we have collected enough samples calculate the averages and upload to Firebase.
     if (sensor_data_count == MAX_FIREBASE_SAMPLES) {
-      // Check if Firebase is ready before proceeding with the upload.
+      // Check if Firebase is ready before proceeding with upload.
       if (firebase.ready()) {
+        // Get the current time to use in the upload.
+        struct tm time_info;
+        if (!getLocalTime(&time_info)) {
+          Serial.println("Firebase Task: Failed to get time. Skipping log.");
+          sensor_data_count = 0;
+          continue;
+        }
+
         // Calculate the average temperature and pressure from the local sensor data.
         avg_sensor_data.temperature = calculateAverageTemp(local_sensor_data, sensor_data_count);
         avg_sensor_data.pressure = calculateAveragePressure(local_sensor_data, sensor_data_count);
 
-        // Upload the average sensor data to Firebase.
-        database.set<float>(async_client, FIREBASE_PATH + "/temperature_c", avg_sensor_data.temperature, dbResult, "RealtimeDatabase_SetTask");
-        database.set<float>(async_client, FIREBASE_PATH + "/temperature_f", toFahrenheit(avg_sensor_data.temperature), dbResult, "RealtimeDatabase_SetTask");
-        database.set<float>(async_client, FIREBASE_PATH + "/pressure_hPa", avg_sensor_data.pressure, dbResult, "RealtimeDatabase_SetTask");
+        // Create the log entry path based on the current time.
+        // Year/Month/Day/Hour_Minute_Second
+        char base_path[30];
+        snprintf(base_path, sizeof(base_path), 
+         "/%d/%s/%d/%02d_%02d_%02d", 
+         time_info.tm_year + 1900,          // Year
+         getMonthName(time_info.tm_mon),    // Month name
+         time_info.tm_mday,                 // Day
+         time_info.tm_hour,                 // Hour
+         time_info.tm_min,                  // Minute
+         time_info.tm_sec);                 // Second
+
+        char full_path[45];
+
+        Serial.println("Firebase Task: Sending data to Firebase.");
+
+        // Create the full path for temperature in Celsius and send to Firebase.
+        strcpy(full_path, base_path);
+        strcat(full_path, "/temperature_c");
+        database.set<float>(async_client, full_path, avg_sensor_data.temperature, dbResult);
+        
+        // Create the full path for temperature in Fahrenheit and send to Firebase.
+        strcpy(full_path, base_path);
+        strcat(full_path, "/temperature_f");
+        database.set<float>(async_client, full_path, toFahrenheit(avg_sensor_data.temperature), dbResult);
+
+        // Create the full path for pressure and send to Firebase.
+        strcpy(full_path, base_path);
+        strcat(full_path, "/pressure_hpa");
+        database.set<float>(async_client, full_path, avg_sensor_data.pressure, dbResult);
       }
       // If Firebase is not ready print a message to the serial monitor and skip the upload.
       else {
         Serial.println("Firebase Task: Firebase not ready. Skipping upload.");
       }
 
-      // Reset the sensor data count after uploading. 
+      // Reset the sensor data count after uploading.
       sensor_data_count = 0;
     }
 
@@ -560,6 +666,11 @@ void firebaseUpload(void* p) {
   }
 }
 
+void firebaseBackground(void * p) {
+  while(1) {
+    firebase.loop();
+  }
+}
 
 //===========================================================================================
 //                                   Read Serial Task
@@ -589,15 +700,28 @@ void readSerial(void* p) {
       ch = Serial.read();
 
       // If the character is a newline end the buffer  with '\0'
-      if (ch == '\n') {
+      if (ch == '\n' || ch == '\r') {
         buffer[index] = '\0';
+        
+        Serial.println(buffer);
 
-        // Process the command in the buffer.
+        // Process the input.
         processSerialInput(buffer);
 
-        // Reset the buffer and index for the next command.
-        memset(buffer, 0, SERIAL_BUFFER_SIZE);
+        // Handle any remaining characters in the buffer after the newline.
+        while (Serial.available()) {
+          Serial.read();
+        }   
+
+        // Index for the next input.
         index = 0;
+      }
+      // Handle backspaces by removing the last character from the buffer.
+      else if (ch == '\b' || ch == 127) {
+        if (index > 0) {
+          index--;
+          Serial.print("\b \b");
+        }
       }
       else {
         // If the character is not a newline, store it in the buffer.
@@ -607,6 +731,8 @@ void readSerial(void* p) {
         }
       }
     }
+
+    vTaskDelay(MS_TO_TICKS(SERIAL_READ_INTERVAL_MS));
   }
 }
 
@@ -641,57 +767,74 @@ void systemMonitor(void* p) {
 
   // Initialize Wi-Fi and connect to the network.
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  Serial.print("System Monitor: Connecting to Wi-Fi");
+  Serial.print("\nSystem Monitor: Connecting to Wi-Fi");
   // Wait for the Wi-Fi connection to be established.
   while (WiFi.status() != WL_CONNECTED) {
     Serial.print(".");
     vTaskDelay(MS_TO_TICKS(WIFI_CONNECT_INTERVAL_MS));
   }
   Serial.println();
-  Serial.println("System Monitor: Connected.");
 
+  // Synchronize the system time using NTP servers.
+  // This is important for timestamping the Firebase and SD card logs.
+  Serial.print("System Monitor: Synchronizing system time.");
+  configTime(0, 0, "pool.ntp.org", "time.nist.gov");
+  struct tm timeinfo;
+  while (!getLocalTime(&timeinfo)) {
+    Serial.print(".");
+    vTaskDelay(MS_TO_TICKS(WIFI_CONNECT_INTERVAL_MS));
+  }
+  Serial.println();
+
+  // Configure SSL client for Firebase.
   ssl_client.setInsecure();
+
+  // Initialize Firebase with the provided credentials and database URL.
+  Serial.println("System Monitor: Initializing Firebase.");
   initializeApp(async_client, firebase, getAuth(user_auth), NULL, "authTask");
   firebase.getApp<RealtimeDatabase>(database);
-  database.url("DATABSE_URL");
+  database.url(DATABASE_URL);
 
   while(1) {
     switch (system_state) {
       case HARDWARE_INIT:
-        Serial.println("System Monitor: Checking hardware.");
         // Check the hardware status.
         if (checkHardware()) {
           // If the hardware is OK and tasks are not already running initialize the tasks.
           if (!tasks_running) {
-            Serial.println("Serial Monitor: Hardware OK. Initializing system.");
+            Serial.println("System Monitor: Initializing system.");
 
             // Replace 'xTaskCreatePinnedToCore' with 'xTaskCreate' 
             // if using vanilla FreeRTOS and remove the core parameter.
             // Here I'm using a modifed version of FreeRTOS 
-            // called ESP-IDF which allows pinning tasks to cores.
+            // by ESP which allows pinning tasks to cores.
             // This is because ESP32 has 2 cores as opposed to 1 core in vanilla FreeRTOS.
             xTaskCreatePinnedToCore(readSensor, "Read Sensor", 2048, NULL, 4, &readSensor_h, 0);
             xTaskCreatePinnedToCore(displayData, "Display Data", 2048, NULL, 3, &displayData_h, 0);
-            xTaskCreatePinnedToCore(sdCardLogger, "SD Card Logger", 2048, NULL, 2, &sdCardLogger_h, 0);
-            xTaskCreatePinnedToCore(readSerial, "Read Serial", 2048, NULL, 3, &readSerial_h, 1);
+            xTaskCreatePinnedToCore(sdCardLogger, "SD Card Logger", 4096, NULL, 2, &sdCardLogger_h, 0);
+            xTaskCreatePinnedToCore(readSerial, "Read Serial", 4096, NULL, 3, &readSerial_h, 1);
             xTaskCreatePinnedToCore(firebaseUpload, "Firebase Upload", 8192, NULL, 2, &firebaseUpload_h, 1);
-
+            xTaskCreatePinnedToCore(firebaseBackground, "Firebase Background", 8192, NULL, 1, &firebaseBackground_h, 1);
             tasks_running = true;
+            Serial.println("System Monitor: System running.");
           }
           // Otherwise resume the tasks if they were suspended.
           else {
-            Serial.println("System Monitor: Hardware recovery successful. Resuming tasks.");
+            Serial.println("System Monitor: Hardware recovery successful.");
             resumeAllTasks();
-            resumeTask(readSerial_h);
+            resumeTask(readSerial_h, "Read Serial");
+            Serial.println("System Monitor: System running.");
           }
 
           // Set the system state to RUNNING and reset the hardware check timer.
           system_state = RUNNING;
+          hardware_ok = true;
           hardware_check_start_time = xTaskGetTickCount();
         }
         // If the hardware is not OK set the system state to HARDWARE_ERROR and start the hardware check timer.
         else {
           system_state = HARDWARE_ERROR;
+          hardware_ok = false;
           hardware_check_start_time = xTaskGetTickCount();
         }
         break;
@@ -728,8 +871,9 @@ void systemMonitor(void* p) {
         if (xTaskGetTickCount() - hardware_check_start_time >= MS_TO_TICKS(HARDWARE_CHECK_INTERVAL_MS)) {
           // If the hardware is not OK set system state to HARDWARE_ERROR and suspend all tasks.
           if (!checkHardware()) {
+            hardware_ok = false;
             suspendAllTasks();
-            suspendTask(readSerial_h);
+            suspendTask(readSerial_h, "Read Serial");
 
             system_state = HARDWARE_ERROR;
           }
@@ -768,13 +912,9 @@ void setup() {
   spi_mutex = xSemaphoreCreateMutex();
 
   // Create the system monitor task which will manage the overall system state and tasks.
-  // It has higher priority than other tasks to ensure it can manage the system effectively.
-  xTaskCreatePinnedToCore(systemMonitor, "System Monitor", 4096, NULL, 5, NULL, 0);
+  // It has higher priority than other tasks to so that it can manage the system effectively.
+  xTaskCreatePinnedToCore(systemMonitor, "System Monitor", 16384, NULL, 5, &systemMonitor_h, 0);
 }
 
-
-// The loop function simply calls firebase.loop() to handle background Firebase operations
-// but only when the system is idle.
-void loop() {
-  firebase.loop();
-}
+// Do nothing 
+void loop() {}
