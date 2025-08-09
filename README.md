@@ -1,8 +1,5 @@
 # ESP32-FreeRTOS-Weather-Station: A Technical Deep Dive
 
-![Project Demo GIF](placeholder.gif)
-*(Recommendation: Replace with a GIF of the project working.)*
-
 ## Project Purpose
 
 The primary goal of this project was to move beyond simple, single-threaded programming and gain a deep, practical understanding of a real-time operating system (RTOS). I chose FreeRTOS due to its prevalence in the embedded industry and used this weather station as a platform to implement and master its core concepts in a complex, multi-functional system.
