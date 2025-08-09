@@ -58,11 +58,12 @@ This separation is a key architectural choice for building reliable connected de
 
 ### Task Breakdown & Memory Allocation
 
--   **`systemMonitor` (4096 bytes):** The highest priority task. It acts as the system supervisor, handling the boot-up sequence, hardware checks, and the lifecycle (creation, suspension, resumption) of all other tasks. It requires a larger stack to manage the Wi-Fi and Firebase initialization.
+-   **`systemMonitor` (16384 bytes):** The highest priority task. It acts as the system supervisor, handling the boot-up sequence, hardware checks, and the lifecycle (creation, suspension, resumption) of all other tasks. It requires a larger stack to manage the Wi-Fi and Firebase initialization and the periodic hardware checks. 
 -   **`readSensor` (2048 bytes):** A simple, periodic task. It wakes up every second, safely acquires the I2C bus lock, reads data from the BMP280, and then safely acquires the data mutex to update a global `SensorData_t` struct.
 -   **`displayData` (2048 bytes):** A periodic task that updates the OLED display. It safely reads from the global sensor data struct and then safely acquires the I2C mutex to perform its drawing operations through the I2C bus.
 -   **`sdCardLogger` (4096 bytes):** A data processing and logging task. It collects a batch of sensor readings, calculates their average to reduce noise, and writes a single, organized entry to the SD card. It handles the creation of date-stamped folders and files. Requires a larger stack for the filesystem library.
 -   **`firebaseUpload` (8192 bytes):** The cloud communication task. Similar to the SD logger, it collects and averages data. It then sends this data to the Firebase Realtime Database using non-blocking, asynchronous API calls.
+-   **`firebaseBackground` (8192 bytes):** The only purpose of this task is to run `firebase.loop()` which runs reauthentication (expires every 60 seconds) and other background tasks for Firebase. Which would otherwise significantly slow down data upload.
 -   **`readSerial` (4096 bytes):** Manages the Command-Line Interface (CLI). It listens for user input and executes commands like suspending or resuming other tasks.
 
 ---
