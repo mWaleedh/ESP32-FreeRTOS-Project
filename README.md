@@ -1,4 +1,4 @@
-# ESP32-FreeRTOS-Weather-Station: A Technical Deep Dive
+# ESP32 FreeRTOS Weather Station
 
 ## Project Purpose
 
