@@ -30,7 +30,7 @@
 
 // Replace with your Wi-Fi credentials
 const char* WIFI_SSID = "REPLACE_WITH_WIFI_SSID";
-const char* WIFI_PASSWORD = ""REPLACE_WITH_WIFI_PASSWORD";
+const char* WIFI_PASSWORD = "REPLACE_WITH_WIFI_PASSWORD";
 
 // Replace with your Firebase credentials
 const char* WEB_API_KEY = "REPLACE_WITH_FIREBASE_PROJECT_API";
