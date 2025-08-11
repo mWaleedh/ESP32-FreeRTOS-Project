@@ -29,14 +29,14 @@
 #define MS_TO_TICKS(ms) ((ms) / portTICK_PERIOD_MS)
 
 // Replace with your Wi-Fi credentials
-const char* WIFI_SSID = "XD";
-const char* WIFI_PASSWORD = "11081975";
+const char* WIFI_SSID = "REPLACE_WITH_WIFI_SSID";
+const char* WIFI_PASSWORD = ""REPLACE_WITH_WIFI_PASSWORD";
 
 // Replace with your Firebase credentials
-const char* WEB_API_KEY = "AIzaSyBzxxGUO1AEMTBA4_xy2YgjAtcGUA_7pvM";
-const char* DATABASE_URL = "https://freertos-weatherstation-default-rtdb.firebaseio.com/";
-const char* USER_EMAIL = "waleed7x.spam@gmail.com";
-const char*USER_PASS = "waleed.spam200657";
+const char* WEB_API_KEY = "REPLACE_WITH_FIREBASE_PROJECT_API";
+const char* DATABASE_URL = "REPLACE_WITH_RTDB_URL";
+const char* USER_EMAIL = "REPLACE_WITH_USER_EMAIL";
+const char*USER_PASS = "REPLACE_WITH_USER_PASSWORD";
 
 // Set serial monitor baud rate.
 static const int BAUD_RATE = 115200;
