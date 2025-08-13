@@ -1,6 +1,8 @@
 # ESP32-FreeRTOS-Weather-Station: A Fault-Tolerant IoT System
-
-![Project Demo GIF](images/demo.GIF)
+    
+<p align="center">
+  <img src="https://github.com/mWaleedh/ESP32-FreeRTOS-Project/blob/main/images/demo.mp4?raw=true" alt="Project Demo Video"/>
+</p>
 
 **[Watch the Full Video Demonstration on YouTube](https://youtu.be/H90CZhF5egQ)**
 
