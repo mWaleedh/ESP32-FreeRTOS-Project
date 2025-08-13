@@ -2,7 +2,7 @@
 
 ![Project Demo GIF](images/demo.gif)
 
-**[Watch the Full, High-Quality Video Demonstration on YouTube](https://youtu.be/H90CZhF5egQ)**
+**[Watch the Full Video Demonstration on YouTube](https://youtu.be/H90CZhF5egQ)**
 
 ---
 
