@@ -1,4 +1,4 @@
-# ESP32-FreeRTOS-Weather-Station: A Fault-Tolerant IoT System
+# ESP32-FreeRTOS-Weather-Station
 
 ![Project Demo GIF](images/demo.gif)
 
